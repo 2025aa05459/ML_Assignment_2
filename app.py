@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-
+import pickle
 from sklearn.metrics import (
     accuracy_score,
     roc_auc_score,
@@ -13,19 +12,9 @@ from sklearn.metrics import (
     classification_report
 )
 
-# Import models
-from model.logistic_regression import train_logistic_regression
-from model.decision_tree import train_decision_tree
-from model.knn import train_knn
-from model.naive_bayes import train_naive_bayes
-from model.random_forest import train_random_forest
-from model.gradient_boosting import train_gradient_boosting
-
 st.title("Bank Marketing Classification App")
 
-st.write("Upload test CSV file (with same structure as training dataset)")
-
-uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
+uploaded_file = st.file_uploader("Upload Test CSV (Must contain column 'y')", type=["csv"])
 
 model_choice = st.selectbox(
     "Select Model",
@@ -50,39 +39,30 @@ def evaluate(y_true, y_pred, y_prob):
     }
 
 if uploaded_file:
+
     df = pd.read_csv(uploaded_file)
+
+    if "y" not in df.columns:
+        st.error("Uploaded file must contain target column named 'y'")
+        st.stop()
 
     y = df["y"]
     X = df.drop("y", axis=1)
 
-    if model_choice == "Logistic Regression":
-        model, X_test, y_test = train_logistic_regression(X, y)
+    # Load model
+    model_path = f"model/{model_choice.replace(' ', '_')}.pkl"
+    model = pickle.load(open(model_path, "rb"))
 
-    elif model_choice == "Decision Tree":
-        model, X_test, y_test = train_decision_tree(X, y)
+    y_pred = model.predict(X)
+    y_prob = model.predict_proba(X)[:, 1]
 
-    elif model_choice == "KNN":
-        model, X_test, y_test = train_knn(X, y)
-
-    elif model_choice == "Naive Bayes":
-        model, X_test, y_test = train_naive_bayes(X, y)
-
-    elif model_choice == "Random Forest":
-        model, X_test, y_test = train_random_forest(X, y)
-
-    else:
-        model, X_test, y_test = train_gradient_boosting(X, y)
-
-    y_pred = model.predict(X_test)
-    y_prob = model.predict_proba(X_test)[:, 1]
-
-    metrics = evaluate(y_test, y_pred, y_prob)
+    metrics = evaluate(y, y_pred, y_prob)
 
     st.subheader("Evaluation Metrics")
     st.write(metrics)
 
     st.subheader("Confusion Matrix")
-    st.write(confusion_matrix(y_test, y_pred))
+    st.write(confusion_matrix(y, y_pred))
 
     st.subheader("Classification Report")
-    st.text(classification_report(y_test, y_pred))
+    st.text(classification_report(y, y_pred))
